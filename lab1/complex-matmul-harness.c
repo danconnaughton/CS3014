@@ -202,15 +202,15 @@ void team_matmul_m128(struct complex ** A, struct complex ** B, struct complex *
    }*/
 	 for(k=0; k<a_cols; k+=k+2){
 		 struct complex product;
-		 __m128 a1 = _mm_load_ps(&A[i][k]);  //pos0 = A[i][k].real, pos1 = A[i][k].imag
+		 __m128 a1 = _mm_load_ps(&A[i][k].real);  //pos0 = A[i][k].real, pos1 = A[i][k].imag
+		 a1 = _mm_and_ps(a1, a1Mask);
+		 __m128 a2 = _mm_load_ps(&A[i][k+1].real-8); //pos2 = A[i][k+1].real, pos3 = A[i][k+1].imag
+		 a2 = _mm_and_ps(a2, a2Mask);
+		 __m128 a = _mm_and_ps(a1, a2);   //pos0 = A[i][k].real, pos1 = A[i][k].imag, pos2 = A[i][k+1].real, pos3 = A[i][k+1].imag
 		 
-		 __m128 a2 = _mm_load_ps(&A[i][k+1]-8); //pos2 = A[i][k+1].real, pos3 = A[i][k+1].imag
+		 __m128 b = _mm_load_ps(&B[k][j].real);  //pos0 = B[k][j].real, pos1 = B[k][j].imag, pos2 = B[k+1][j].real, pos3 = B[k+1][j].imag
 		 
-		 __m128 b = _mm_load_ps(&B[k][j]);  //pos0 = B[k][j].real, pos1 = B[k][j].imag, pos2 = B[k+1][j].real, pos3 = B[k+1][j].imag
-		 
-		 __m128 p1 = _mm_mul_ps()
-		 product.real = A[i][k].real * B[k][j].real - A[i][k].imag * B[k][j].imag;
-		 product.imag = A[i][k].real * B[k][j].imag + A[i][k].imag * B[k][j].real;
+		 __m128 p1 = _mm_mul_ps(a, b);  // pos0-pos1 = product.real for k, pos2-pos3=product.real for k+1
 
 
 	 }
