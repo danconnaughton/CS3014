@@ -200,7 +200,7 @@ void team_matmul_m128(struct complex ** A, struct complex ** B, struct complex *
        sum.real += product.real;
        sum.imag += product.imag;
    }*/
-	 for(k=0; k<a_cols; k+=k+2){
+	 for(k=0; k<a_cols; k+=2){
 		 struct complex product;
 		 __m128 a1 = _mm_load_ps(&A[i][k].real);  //pos0 = A[i][k].real, pos1 = A[i][k].imag
 		 a1 = _mm_and_ps(a1, a1Mask);
