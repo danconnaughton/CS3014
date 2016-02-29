@@ -6,6 +6,7 @@
 #include <sys/time.h>
 #include <assert.h>
 #include <omp.h>
+#include <xmmintrin.h>
 
 
 
@@ -176,6 +177,48 @@ void team_matmul(struct complex ** A, struct complex ** B, struct complex ** C, 
  }
 }
 
+void team_matmul_m128(struct complex ** A, struct complex ** B, struct complex ** C, int a_rows, int a_cols, int b_cols) {
+ int i, j, k;
+ int temp[4] = {-1, -1, 0, 0};
+ __m128 a1Mask = _mm_load_ps(&temp);
+ int temp2[4] = {0, 0, -1, -1};
+  __m128 a2Mask = _mm_load_ps(&temp2);
+
+ #pragma omp parallel for
+ for(i=0; i<a_rows; i++){
+   #pragma omp parallel for
+   for(j=0; j<b_cols; j++){
+     struct complex sum;
+     sum.real = 0.0;
+     sum.imag = 0.0;
+     #pragma omp parallel for
+    /* for(k=0; k<a_cols; k++){
+       // the following code does: sum += A[i][k] * B[k][j];
+       struct complex product;
+       product.real = A[i][k].real * B[k][j].real - A[i][k].imag * B[k][j].imag;
+       product.imag = A[i][k].real * B[k][j].imag + A[i][k].imag * B[k][j].real;
+       sum.real += product.real;
+       sum.imag += product.imag;
+   }*/
+	 for(k=0; k<a_cols; k+=k+2){
+		 struct complex product;
+		 __m128 a1 = _mm_load_ps(&A[i][k]);  //pos0 = A[i][k].real, pos1 = A[i][k].imag
+		 
+		 __m128 a2 = _mm_load_ps(&A[i][k+1]-8); //pos2 = A[i][k+1].real, pos3 = A[i][k+1].imag
+		 
+		 __m128 b = _mm_load_ps(&B[k][j]);  //pos0 = B[k][j].real, pos1 = B[k][j].imag, pos2 = B[k+1][j].real, pos3 = B[k+1][j].imag
+		 
+		 __m128 p1 = _mm_mul_ps()
+		 product.real = A[i][k].real * B[k][j].real - A[i][k].imag * B[k][j].imag;
+		 product.imag = A[i][k].real * B[k][j].imag + A[i][k].imag * B[k][j].real;
+
+
+	 }
+   C[i][j] = sum;
+  }
+ }
+}
+
 long long time_diff(struct timeval * start, struct timeval * end) {
   return (end->tv_sec - start->tv_sec) * 1000000L + (end->tv_usec - start->tv_usec);
 }
@@ -260,4 +303,3 @@ int main(int argc, char ** argv)
 
   return 0;
 }
-
