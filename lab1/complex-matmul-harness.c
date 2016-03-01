@@ -153,7 +153,7 @@ void matmul(struct complex ** A, struct complex ** B, struct complex ** C, int a
 }
 
 /* the fast version of matmul written by the team */
-void team_matmul(struct complex ** A, struct complex ** B, struct complex ** C, int a_rows, int a_cols, int b_cols) {
+void team_matmul_b(struct complex ** A, struct complex ** B, struct complex ** C, int a_rows, int a_cols, int b_cols) {
  int i, j, k;
 
  #pragma omp parallel for
@@ -177,12 +177,14 @@ void team_matmul(struct complex ** A, struct complex ** B, struct complex ** C, 
  }
 }
 
-void team_matmul_m128(struct complex ** A, struct complex ** B, struct complex ** C, int a_rows, int a_cols, int b_cols) {
+void team_matmul(struct complex ** A, struct complex ** B, struct complex ** C, int a_rows, int a_cols, int b_cols) {
  int i, j, k;
  int temp[4] = {-1, -1, 0, 0};
  __m128 a1Mask = _mm_load_ps(&temp);
  int temp2[4] = {0, 0, -1, -1};
   __m128 a2Mask = _mm_load_ps(&temp2);
+
+  __m128 a1, a2, a, b, p1;
 
  #pragma omp parallel for
  for(i=0; i<a_rows; i++){
@@ -201,18 +203,18 @@ void team_matmul_m128(struct complex ** A, struct complex ** B, struct complex *
        sum.imag += product.imag;
    }*/
 	 for(k=0; k<a_cols; k+=2){
-		 struct complex product;
-		 __m128 a1 = _mm_load_ps(&A[i][k].real);  //pos0 = A[i][k].real, pos1 = A[i][k].imag
+
+		 a1 = _mm_load_ps(&A[i][k].real);  //pos0 = A[i][k].real, pos1 = A[i][k].imag
 		 a1 = _mm_and_ps(a1, a1Mask);
-		 __m128 a2 = _mm_load_ps(&A[i][k+1].real-8); //pos2 = A[i][k+1].real, pos3 = A[i][k+1].imag
+		 a2 = _mm_load_ps(&A[i][k+1].real-8); //pos2 = A[i][k+1].real, pos3 = A[i][k+1].imag
 		 a2 = _mm_and_ps(a2, a2Mask);
-		 __m128 a = _mm_and_ps(a1, a2);   //pos0 = A[i][k].real, pos1 = A[i][k].imag, pos2 = A[i][k+1].real, pos3 = A[i][k+1].imag
-		 
-		 __m128 b = _mm_load_ps(&B[k][j].real);  //pos0 = B[k][j].real, pos1 = B[k][j].imag, pos2 = B[k+1][j].real, pos3 = B[k+1][j].imag
-		 
-		 __m128 p1 = _mm_mul_ps(a, b);  // pos0-pos1 = product.real for k, pos2-pos3=product.real for k+1
+		 a = _mm_and_ps(a1, a2);   //pos0 = A[i][k].real, pos1 = A[i][k].imag, pos2 = A[i][k+1].real, pos3 = A[i][k+1].imag
 
+		 b = _mm_load_ps(&B[k][j].real);  //pos0 = B[k][j].real, pos1 = B[k][j].imag, pos2 = B[k+1][j].real, pos3 = B[k+1][j].imag
+		 p1 = _mm_mul_ps(a, b);  // pos0-pos1 = product.real for k, pos2-pos3=product.real for k+1
 
+                sum.real = p1[0] - p1[1];
+                sum.imag = p1[2] - p1[3];
 	 }
    C[i][j] = sum;
   }
