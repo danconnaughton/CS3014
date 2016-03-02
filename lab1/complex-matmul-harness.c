@@ -8,15 +8,12 @@
 #include <omp.h>
 #include <xmmintrin.h>
 
-
-
-
 /* the following two definitions of DEBUGGING control whether or not
    debugging information is written out. To put the program into
    debugging mode, uncomment the following line: */
-/*#define DEBUGGING(_x) _x */
+#define DEBUGGING(_x) _x
 /* to stop the printing of debugging information, use the following line: */
-#define DEBUGGING(_x)
+/*#define DEBUGGING(_x)*/
 
 struct complex {
   float real;
@@ -153,30 +150,6 @@ void matmul(struct complex ** A, struct complex ** B, struct complex ** C, int a
 }
 
 /* the fast version of matmul written by the team */
-void team_matmul_b(struct complex ** A, struct complex ** B, struct complex ** C, int a_rows, int a_cols, int b_cols) {
- int i, j, k;
-
- #pragma omp parallel for
- for(i=0; i<a_rows; i++){
-   #pragma omp parallel for
-   for(j=0; j<b_cols; j++){
-     struct complex sum;
-     sum.real = 0.0;
-     sum.imag = 0.0;
-     #pragma omp parallel for
-     for(k=0; k<a_cols; k++){
-       // the following code does: sum += A[i][k] * B[k][j];
-       struct complex product;
-       product.real = A[i][k].real * B[k][j].real - A[i][k].imag * B[k][j].imag;
-       product.imag = A[i][k].real * B[k][j].imag + A[i][k].imag * B[k][j].real;
-       sum.real += product.real;
-       sum.imag += product.imag;
-   }
-   C[i][j] = sum;
-  }
- }
-}
-
 void team_matmul(struct complex ** A, struct complex ** B, struct complex ** C, int a_rows, int a_cols, int b_cols) {
  int i, j, k;
  int temp[4] = {-1, -1, 0, 0};
@@ -203,8 +176,8 @@ void team_matmul(struct complex ** A, struct complex ** B, struct complex ** C, 
        sum.imag += product.imag;
    }*/
 	 for(k=0; k<a_cols; k+=2){
-
-		 a1 = _mm_load_ps(&A[i][k].real);  //pos0 = A[i][k].real, pos1 = A[i][k].imag
+                 struct complex product;
+ 		 a1 = _mm_load_ps(&A[i][k].real);  //pos0 = A[i][k].real, pos1 = A[i][k].imag
 		 a1 = _mm_and_ps(a1, a1Mask);
 		 a2 = _mm_load_ps(&A[i][k+1].real-8); //pos2 = A[i][k+1].real, pos3 = A[i][k+1].imag
 		 a2 = _mm_and_ps(a2, a2Mask);
@@ -213,8 +186,10 @@ void team_matmul(struct complex ** A, struct complex ** B, struct complex ** C, 
 		 b = _mm_load_ps(&B[k][j].real);  //pos0 = B[k][j].real, pos1 = B[k][j].imag, pos2 = B[k+1][j].real, pos3 = B[k+1][j].imag
 		 p1 = _mm_mul_ps(a, b);  // pos0-pos1 = product.real for k, pos2-pos3=product.real for k+1
 
-                sum.real = p1[0] - p1[1];
-                sum.imag = p1[2] - p1[3];
+                 product.real = p1[0] - p1[1];
+                 product.imag = p1[2] - p1[3];
+                 sum.real += product.real;
+                 sum.imag += product.imag;
 	 }
    C[i][j] = sum;
   }
