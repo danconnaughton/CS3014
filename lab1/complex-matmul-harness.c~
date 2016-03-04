@@ -154,7 +154,7 @@ void team_matmul(struct complex ** A, struct complex ** B, struct complex ** C, 
  int i, j, k;
 
  __m128 a1Mask = _mm_setr_ps(1.0f, 1.0f, 0.0f, 0.0f);
-  __m128 a2Mask = _mm_setr_ps(0.0f, 0.0f, 1.0f, 1.0f);
+  __m128 a1Mask = _mm_setr_ps(0.0f, 0.0f, 1.0f, 1.0f);
 
   __m128 a1, a2, a, b, p1;
 
