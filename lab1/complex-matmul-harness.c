@@ -154,8 +154,8 @@ struct complex ** invert_matrix(struct complex ** source_matrix, int dim1, int d
   int i, j;
   struct complex ** result = new_empty_matrix(dim2, dim1);
 
-  for ( i = 0; i < dim1; i++ ) {
-    for ( j = 0; j < dim2; j++ ) {
+  for ( i = 0; i < dim2; i++ ) {
+    for ( j = 0; j < dim1; j++ ) {
       result[i][j] = source_matrix[j][i];
     }
   }
@@ -167,30 +167,33 @@ struct complex ** invert_matrix(struct complex ** source_matrix, int dim1, int d
 /* the fast version of matmul written by the team */
 void team_matmul(struct complex ** A, struct complex ** B, struct complex ** C, int a_dim1, int a_dim2, int b_dim2)
 {
-  struct complex ** A_inverted = invert_matrix(A, a_dim1, a_dim2);
-  #pragma omp parallel default(none) if(a_dim1*b_dim2>11664) shared(a_dim1, a_dim2, b_dim2, A_inverted, B, C)
+ if(a_dim2*b_dim2 > 10000){
+  struct complex ** B_inverted = invert_matrix(B, a_dim2, b_dim2);
+  #pragma omp parallel default(none) shared(a_dim1, a_dim2, b_dim2, A, B_inverted, C)
   {
-
-  int i, j, k;
-
-  #pragma omp for collapse(2)
-  for ( i = 0; i < a_dim1; i++ ) {
-    for( j = 0; j < b_dim2; j++ ) {
-      struct complex sum;
-      sum.real = 0.0;
-      sum.imag = 0.0;
-      for ( k = 0; k < a_dim2; k++ ) {
-        // the following code does: sum += A[i][k] * B[k][j];
-        struct complex product;
-        product.real = A_inverted[k][i].real * B[k][j].real - A_inverted[k][i].imag * B[k][j].imag;
-        product.imag = A_inverted[k][i].real * B[k][j].imag + A_inverted[k][i].imag * B[k][j].real;
-        sum.real += product.real;
-        sum.imag += product.imag;
-      }
-      C[i][j] = sum;
+   int i, j, k;
+   #pragma omp for collapse(2)
+   for ( i = 0; i < a_dim1; i++ ) {
+     for( j = 0; j < b_dim2; j++ ) {
+       struct complex sum;
+       sum.real = 0.0;
+       sum.imag = 0.0;
+       for ( k = 0; k < a_dim2; k++ ) {
+         // the following code does: sum += A[i][k] * B[k][j];
+         struct complex product;
+         product.real = A[i][k].real * B_inverted[j][k].real - A[i][k].imag * B_inverted[j][k].imag;
+         product.imag = A[i][k].real * B_inverted[j][k].imag + A[i][k].imag * B_inverted[j][k].real;
+         sum.real += product.real;
+         sum.imag += product.imag;
+       }
+       C[i][j] = sum;
     }
    }
   }
+ }
+ else{
+  matmul(A,B,C,a_dim1,a_dim2,b_dim2);
+ }
 }
 
 long long time_diff(struct timeval * start, struct timeval * end) {
