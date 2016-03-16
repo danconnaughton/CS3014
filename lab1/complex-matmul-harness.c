@@ -6,7 +6,7 @@
 #include <sys/time.h>
 #include <assert.h>
 #include <omp.h>
-//#include <xmmintrin.h>
+#include <xmmintrin.h>
 
 /* the following two definitions of DEBUGGING control whether or not
    debugging information is written out. To put the program into
@@ -153,7 +153,7 @@ struct complex ** invert_matrix(struct complex ** source_matrix, int dim1, int d
 {
   int i, j;
   struct complex ** result = new_empty_matrix(dim2, dim1);
-
+  #pragma omp for collapse(2)
   for ( i = 0; i < dim2; i++ ) {
     for ( j = 0; j < dim1; j++ ) {
       result[i][j] = source_matrix[j][i];
@@ -167,34 +167,77 @@ struct complex ** invert_matrix(struct complex ** source_matrix, int dim1, int d
 /* the fast version of matmul written by the team */
 void team_matmul(struct complex ** A, struct complex ** B, struct complex ** C, int a_dim1, int a_dim2, int b_dim2)
 {
- if(a_dim2*b_dim2 > 10000){
+ if(a_dim2*b_dim2 > 10000)
+ {
   struct complex ** B_inverted = invert_matrix(B, a_dim2, b_dim2);
   #pragma omp parallel default(none) shared(a_dim1, a_dim2, b_dim2, A, B_inverted, C)
   {
    int i, j, k;
    #pragma omp for collapse(2)
-   for ( i = 0; i < a_dim1; i++ ) {
-     for( j = 0; j < b_dim2; j++ ) {
+   for ( i = 0; i < a_dim1; i++ ){
+     for( j = 0; j < b_dim2; j++ ){
        struct complex sum;
        sum.real = 0.0;
        sum.imag = 0.0;
-       for ( k = 0; k < a_dim2; k++ ) {
+       for ( k = 0; k < a_dim2; k++ ){
          // the following code does: sum += A[i][k] * B[k][j];
-         struct complex product;
-         product.real = A[i][k].real * B_inverted[j][k].real - A[i][k].imag * B_inverted[j][k].imag;
-         product.imag = A[i][k].real * B_inverted[j][k].imag + A[i][k].imag * B_inverted[j][k].real;
-         sum.real += product.real;
-         sum.imag += product.imag;
+         sum.real += A[i][k].real * B_inverted[j][k].real - A[i][k].imag * B_inverted[j][k].imag;
+         sum.imag += A[i][k].real * B_inverted[j][k].imag + A[i][k].imag * B_inverted[j][k].real;
        }
        C[i][j] = sum;
+      }
+     }
     }
+   }
+  else
+  {
+   matmul(A,B,C,a_dim1,a_dim2,b_dim2);
+  }
+}
+
+/*
+void vector_matmul(struct complex ** A, struct complex ** B, struct complex ** C, int a_dim1, int a_dim2, int b_dim2)
+{
+ #pragma omp parallel default(none) shared(a_dim1, a_dim2, b_dim2, A, B, C)
+ {
+  int i,j,k;
+  __m128 a,b;
+  #pragma omp for collapse(2)
+  for(i=0; i<a_dim1; i++){
+   for(j=0; j<b_dim2; j++){
+   struct complex sum;
+   sum.real = 0.0;
+   sum.imag = 0.0;
+    for(k=0; k<a_dim2; k = k + 2){
+      if(k<a_dim2-1){
+      // load 2 complex numbers from row A[i]
+      a = _mm_setr_ps(A[i][k].real, A[i][k].imag, A[i][k+1].real, A[i][k+1].imag);
+      // load 2 complex numbers from column B[j]
+      b = _mm_setr_ps(B[k][j].real,B[k][j].imag,B[k+1][j].real,B[k+1][j].imag);
+
+      //following code does: (A + Ai)(B + Bi) twice
+      //once for first complex number then the second
+      sum.real += (a[0]*b[0]) - (a[1]*b[1]);
+      sum.imag += (a[0]*b[1]) + (a[1]*b[0]);
+
+      sum.real += (a[2]*b[2]) - (a[3]*b[3]);
+      sum.imag += (a[2]*b[3]) + (a[3]*b[2]);
+     }
+     else{
+      // if only one complex number is left in each row and column
+      a = _mm_setr_ps(A[i][k].real, A[i][k].imag, A[i][k].real, A[i][k].imag);
+      b = _mm_setr_ps(B[k][j].real,B[k][j].imag,B[k][j].real,B[k][j].imag);
+      sum.real += (a[2]*b[2]) - (a[3]*b[3]);
+      sum.imag += (a[2]*b[3]) + (a[3]*b[2]);
+     }
+    }
+    C[i][j] = sum;
    }
   }
  }
- else{
-  matmul(A,B,C,a_dim1,a_dim2,b_dim2);
- }
 }
+*/
+
 
 long long time_diff(struct timeval * start, struct timeval * end) {
   return (end->tv_sec - start->tv_sec) * 1000000L + (end->tv_usec - start->tv_usec);
@@ -238,7 +281,7 @@ int main(int argc, char ** argv)
     printf("matrix A:\n");
     write_out(A, a_dim1, a_dim2);
     printf("\nmatrix B:\n");
-    write_out(A, a_dim1, a_dim2);
+    write_out(B, b_dim1, b_dim2);
     printf("\n");
   } )
 
@@ -247,7 +290,6 @@ int main(int argc, char ** argv)
 
   /* use a simple matmul routine to produce control result */
   matmul(A, B, control_matrix, a_dim1, a_dim2, b_dim2);
-
 
   /* record starting time */
   gettimeofday(&start_time, NULL);
